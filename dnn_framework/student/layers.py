@@ -50,31 +50,35 @@ class BatchNormalization(Layer):
 
         self.input_count = input_count
         self.alpha = alpha
-        self.epsilon = 1e-10
-
+        self.epsilon = 1e-8
+        self.learning_rate = 0.001
         # Parameters to be learned
         #self.gamma = np.ones(shape=(1, input_count))
         #self.beta = np.zeros(shape=(1, input_count))
         self.parameters = {
-            'gamma': np.zeros(shape=(1, self.input_count)),
+            'gamma': np.ones(shape=(1, self.input_count)),
             'beta': np.zeros(shape=(1, self.input_count))
         }
 
         # Buffers
-        self.running_mean = np.zeros(input_count)
-        self.running_var = np.ones(input_count)
+        self.buffers = {
+            'running_mean': np.zeros(input_count),
+            'running_var': np.ones(input_count),
+            'global_mean': np.zeros(input_count),
+            'global_variance': np.zeros(input_count)
+        }
 
-        # Flag for training / evaluation mode
-        self.training = True
+        # # Flag for training / evaluation mode
+        self._is_training = True
 
     def get_parameters(self):
         return self.parameters
 
     def get_buffers(self):
-        return self.running_mean, self.running_var
+        return self.buffers
 
     def forward(self, x):
-        if self.training:
+        if self.is_training():
             return self._forward_training(x)
         else:
             return self._forward_evaluation(x)
@@ -82,28 +86,55 @@ class BatchNormalization(Layer):
     def _forward_training(self, x):
 
         # Calcul de la moyenne et de la variance
-        self.mean = np.mean(x, axis=0)
-        self.variance = np.var(x, axis=0)
+        mean = np.mean(x, axis=0)
+        variance = np.var(x, axis=0)
 
         # Normalisation de l'entrée
-        self.x_hat = (x - self.mean) / np.sqrt(self.variance + self.epsilon)
-        self.y = self.get_parameters().get('gamma') * self.x_hat + self.get_parameters().get('beta')
+        x_hat = (x - mean) / np.sqrt(variance + self.epsilon)
+        y = self.parameters['gamma'] * x_hat + self.parameters['beta']
 
-        # Mise à jour des statistiques de l'ensemble du lot
-        self.running_mean = ((1 - self.alpha) * self.running_mean) + self.alpha * self.mean
-        self.running_var = ((1 - self.alpha) * self.running_var) + self.alpha * self.variance
+        # # Mise à jour des statistiques de l'ensemble du lot
+        self.buffers['global_mean'] = ((1 - self.alpha) * self.buffers['global_mean']) + self.alpha * mean
+        self.buffers['global_variance'] = ((1 - self.alpha) * self.buffers['global_variance']) + self.alpha * variance
 
         # Place dans le cache x, x_hat, la moyenne et la variance
-        self.cache = (x, self.x_hat, self.mean, self.variance)
+        cache = (x, x_hat, mean, variance)
 
         # Retourne la sortie
-        return self.y, None
+        return y, cache
 
     def _forward_evaluation(self, x):
-        raise NotImplementedError()
+        # Calcul de la moyenne et de la variance
+        mean = self.buffers['global_mean']
+        variance = self.buffers['global_variance']
+
+        # Normalisation de l'entrée
+        x_hat = (x - mean) / np.sqrt(variance + self.epsilon)
+        y = self.parameters['gamma'] * x_hat + self.parameters['beta']
+
+        # Place dans le cache x, x_hat, la moyenne et la variance
+        cache = (x, x_hat, mean, variance)
+        print(type(cache))
+        # Retourne la sortie
+        return y, cache
 
     def backward(self, output_grad, cache):
-        raise NotImplementedError()
+        dLdxhat = output_grad * self.parameters['gamma']
+        dLdvar = np.sum(dLdxhat * (cache[0] - cache[2] * (-1/2*(cache[3] + self.epsilon) ** -3/2)))
+        dLdmean = - np.sum(dLdxhat/ np.sqrt(cache[3] + self.epsilon))
+        input_grad = dLdxhat / np.sqrt(cache[3] + self.epsilon) + (2/np.size(cache[0])) * dLdvar * (cache[0] - cache[2]) + (1/np.size(cache[0])) * dLdmean
+        dLdGamma = output_grad * cache[1]
+        dldBeta = output_grad
+
+        # Mise à jour des valeurs de gamma et beta par la descente de gradient
+        # self.parameters['gamma'] = self.parameters['gamma'] - self.learning_rate * dLdGamma
+        # self.parameters['beta'] = self.parameters['beta'] - self.learning_rate * dldBeta
+
+        parameters_grad = {
+            'gamma': dLdGamma,
+            'beta': dldBeta
+        }
+        return input_grad, parameters_grad
 
 
 class Sigmoid(Layer):
