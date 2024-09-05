@@ -17,7 +17,6 @@ class FullyConnectedLayer(Layer):
             'w': np.zeros(shape=(self.output_count, self.input_count)),
             'b': np.zeros(shape=(1, self.output_count))
         }
-        # raise NotImplementedError()
 
     def get_parameters(self):
         return self.parameters
@@ -28,10 +27,18 @@ class FullyConnectedLayer(Layer):
     def forward(self, x):
         w = self.get_parameters().get('w')
         b = self.get_parameters().get('b')
-        return ((x @ np.transpose(w)) + b), None
+        return ((x @ np.transpose(w)) + b), x
 
     def backward(self, output_grad, cache):
-        raise NotImplementedError()
+        w = self.get_parameters().get('w')
+        input_grad = output_grad @ w
+
+        param_grad = {
+            'w': output_grad.T @ cache,
+            'b': np.sum(output_grad, axis=0)
+        }
+
+        return input_grad, param_grad
 
 
 class BatchNormalization(Layer):
