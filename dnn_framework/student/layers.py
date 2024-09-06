@@ -50,11 +50,10 @@ class BatchNormalization(Layer):
 
         self.input_count = input_count
         self.alpha = alpha
-        self.epsilon = 1e-8
-        self.learning_rate = 0.001
+        self.epsilon = 1e-08
+        self.learning_rate = 0.01
+
         # Parameters to be learned
-        #self.gamma = np.ones(shape=(1, input_count))
-        #self.beta = np.zeros(shape=(1, input_count))
         self.parameters = {
             'gamma': np.ones(shape=(1, self.input_count)),
             'beta': np.zeros(shape=(1, self.input_count))
@@ -119,16 +118,28 @@ class BatchNormalization(Layer):
         return y, cache
 
     def backward(self, output_grad, cache):
+
+        # Attribution des valeurs du cache (pour simplifier les calculs de gradient)
+        x, x_hat, mean, variance = cache
+        M = x.shape[0]
+
+        # Calcul du gradient de x_hat
         dLdxhat = output_grad * self.parameters['gamma']
-        dLdvar = np.sum(dLdxhat * (cache[0] - cache[2] * (-1/2*(cache[3] + self.epsilon) ** -3/2)))
-        dLdmean = - np.sum(dLdxhat/ np.sqrt(cache[3] + self.epsilon))
-        input_grad = dLdxhat / np.sqrt(cache[3] + self.epsilon) + (2/np.size(cache[0])) * dLdvar * (cache[0] - cache[2]) + (1/np.size(cache[0])) * dLdmean
-        dLdGamma = output_grad * cache[1]
-        dldBeta = output_grad
+
+        # Calcul des gradients de la variance et de la moyenne
+        dLdvar = np.sum(dLdxhat * (x - mean) * -0.5 * (variance + self.epsilon) ** -1.5, axis=0)
+        dLdmean = -np.sum(dLdxhat / np.sqrt(variance + self.epsilon), axis=0)
+
+        # Calcul du gradient de l'entrée
+        input_grad = dLdxhat / np.sqrt(variance + self.epsilon) + (2/M) * dLdvar * (x - mean) + (1/M) * dLdmean
+
+        # Calcul des gradients des paramètres gamma et beta
+        dLdGamma = np.sum(output_grad * x_hat, axis=0)
+        dldBeta = np.sum(output_grad, axis=0)
 
         # Mise à jour des valeurs de gamma et beta par la descente de gradient
-        # self.parameters['gamma'] = self.parameters['gamma'] - self.learning_rate * dLdGamma
-        # self.parameters['beta'] = self.parameters['beta'] - self.learning_rate * dldBeta
+        #self.parameters['gamma'] -= (self.learning_rate * dLdGamma)
+        #self.parameters['beta'] -= (self.learning_rate * dldBeta)
 
         parameters_grad = {
             'gamma': dLdGamma,
