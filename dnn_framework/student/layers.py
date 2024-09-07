@@ -2,6 +2,7 @@ import numpy as np
 
 from dnn_framework.layer import Layer
 
+epsilon = 1e-08
 
 class FullyConnectedLayer(Layer):
     """
@@ -22,7 +23,8 @@ class FullyConnectedLayer(Layer):
         return self.parameters
 
     def get_buffers(self):
-        raise NotImplementedError()
+        buffers = {}
+        return buffers
 
     def forward(self, x):
         w = self.get_parameters().get('w')
@@ -50,7 +52,7 @@ class BatchNormalization(Layer):
 
         self.input_count = input_count
         self.alpha = alpha
-        self.epsilon = 1e-08
+
         self.learning_rate = 0.01
 
         # Parameters to be learned
@@ -89,7 +91,7 @@ class BatchNormalization(Layer):
         variance = np.var(x, axis=0)
 
         # Normalisation de l'entrée
-        x_hat = (x - mean) / np.sqrt(variance + self.epsilon)
+        x_hat = (x - mean) / np.sqrt(variance + epsilon)
         y = self.parameters['gamma'] * x_hat + self.parameters['beta']
 
         # # Mise à jour des statistiques de l'ensemble du lot
@@ -108,12 +110,12 @@ class BatchNormalization(Layer):
         variance = self.buffers['global_variance']
 
         # Normalisation de l'entrée
-        x_hat = (x - mean) / np.sqrt(variance + self.epsilon)
+        x_hat = (x - mean) / np.sqrt(variance + epsilon)
         y = self.parameters['gamma'] * x_hat + self.parameters['beta']
 
         # Place dans le cache x, x_hat, la moyenne et la variance
         cache = (x, x_hat, mean, variance)
-        print(type(cache))
+        # print(type(cache))
         # Retourne la sortie
         return y, cache
 
@@ -127,11 +129,11 @@ class BatchNormalization(Layer):
         dLdxhat = output_grad * self.parameters['gamma']
 
         # Calcul des gradients de la variance et de la moyenne
-        dLdvar = np.sum(dLdxhat * (x - mean) * -0.5 * (variance + self.epsilon) ** -1.5, axis=0)
-        dLdmean = -np.sum(dLdxhat / np.sqrt(variance + self.epsilon), axis=0)
+        dLdvar = np.sum(dLdxhat * (x - mean) * -0.5 * (variance + epsilon) ** -1.5, axis=0)
+        dLdmean = -np.sum(dLdxhat / np.sqrt(variance + epsilon), axis=0)
 
         # Calcul du gradient de l'entrée
-        input_grad = dLdxhat / np.sqrt(variance + self.epsilon) + (2/M) * dLdvar * (x - mean) + (1/M) * dLdmean
+        input_grad = dLdxhat / np.sqrt(variance + epsilon) + (2/M) * dLdvar * (x - mean) + (1/M) * dLdmean
 
         # Calcul des gradients des paramètres gamma et beta
         dLdGamma = np.sum(output_grad * x_hat, axis=0)
@@ -154,10 +156,12 @@ class Sigmoid(Layer):
     """
 
     def get_parameters(self):
-        raise NotImplementedError()
+        parameters = {}
+        return parameters
 
     def get_buffers(self):
-        raise NotImplementedError()
+        buffers = {}
+        return buffers
 
     def forward(self, x):
         y = 1/(1 + np.exp(-x))
@@ -167,7 +171,7 @@ class Sigmoid(Layer):
         sigmoid_forward = 1/(1 + np.exp(-cache))
         input_grad = sigmoid_forward * (1 - sigmoid_forward)
         y = output_grad * input_grad
-        return y, None
+        return y, input_grad
 
 
 class ReLU(Layer):
@@ -176,13 +180,16 @@ class ReLU(Layer):
     """
 
     def get_parameters(self):
-        raise NotImplementedError()
+        parameters = {}
+        return parameters
 
     def get_buffers(self):
-        raise NotImplementedError()
+        buffers = {}
+        return buffers
 
     def forward(self, x):
-        return np.maximum(x, 0), x
+        dictx = {'x': x}
+        return np.maximum(x, 0), dictx
 
     def backward(self, output_grad, cache):
-        return output_grad * (cache > 0), None
+        return output_grad * (cache['x'] > 0), cache
