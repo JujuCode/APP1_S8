@@ -14,10 +14,22 @@ class CrossEntropyLoss(Loss):
         :param target: The target classes (shape: (N,))
         :return A tuple containing the loss and the gradient with respect to the input (loss, input_grad)
         """
+        N, C = x.shape
+
+        # Calcule le softmax avec x en entrée
         yhat = softmax(x)
-        test = target @ np.log(yhat)
-        loss = -np.mean(target @ np.log(yhat))
-        input_grad = -target @ (1/yhat)
+
+        # Crée la matrice one-hot
+        yhat_target = yhat[np.arange(yhat.shape[0]), target]
+        one_hot_class = np.zeros_like(yhat)
+        one_hot_class[np.arange(N), target] = 1
+
+        # Calcul de l'entropie croisée
+        loss = -np.sum(np.log(yhat_target)) / yhat.shape[0]
+
+        # Calcul du gradient en entrée
+        input_grad = (yhat - one_hot_class)/N
+
         return loss, input_grad
 
 def softmax(x):
