@@ -15,8 +15,8 @@ class FullyConnectedLayer(Layer):
         self.output_count = output_count
         # Parameters w and
         self.parameters = {
-            'w': np.zeros(shape=(self.output_count, self.input_count)),
-            'b': np.zeros(shape=(1, self.output_count))
+            'w': np.random.randn(output_count, input_count),
+            'b': np.random.randn(output_count)
         }
 
     def get_parameters(self):
